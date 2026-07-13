@@ -24,7 +24,8 @@ export type AlgoEvent =
   | { type: "relax"; from: NodeId; to: NodeId; newDist: number; oldDist: number }
   | { type: "settle"; node: NodeId; dist: number }
   | { type: "done"; dist: Record<NodeId, number>; prev: Record<NodeId, NodeId | null>; opCount: number }
-  | { type: "negative-cycle" };
+  | { type: "negative-cycle" }
+  | { type: "line"; line: number };
 
 export interface AlgoResult {
   path: NodeId[];

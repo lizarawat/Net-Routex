@@ -22,7 +22,11 @@ export async function runSimulation() {
 
   const gen = runAlgorithm(algo, nodes, links, source);
   const phases: Record<NodeId, "idle" | "frontier" | "current" | "settled"> = {};
-  for (const n of nodes) phases[n.id] = "idle";
+  const distances: Record<NodeId, number> = {};
+  for (const n of nodes) {
+    phases[n.id] = "idle";
+    distances[n.id] = Infinity;
+  }
   let relaxed = 0;
   let opCount = 0;
   let finalDist: Record<NodeId, number> = {};
@@ -31,9 +35,17 @@ export async function runSimulation() {
   const start = performance.now();
 
   for (const ev of gen as Generator<AlgoEvent>) {
-    if (cancelled) { s.setRunning(false); return; }
+    if (cancelled) { s.setRunning(false); s.setActiveLine(null); return; }
+    let shouldDelay = false;
     switch (ev.type) {
+      case "line":
+        s.setActiveLine(ev.line);
+        s.addRanLine(ev.line);
+        shouldDelay = true;
+        break;
       case "init":
+        Object.assign(distances, ev.dist);
+        s.setDistances({ ...distances });
         s.logEvent(`init: dist[${ev.source}]=0`);
         break;
       case "enqueue":
@@ -48,15 +60,19 @@ export async function runSimulation() {
         break;
       case "relax":
         relaxed++;
+        distances[ev.to] = ev.newDist;
+        s.setDistances({ ...distances });
         s.logEvent(`relax ${ev.from}→${ev.to}: ${ev.oldDist === Infinity ? "∞" : ev.oldDist} → ${ev.newDist}`);
         break;
       case "settle":
         phases[ev.node] = "settled";
         s.setPhases({ ...phases });
         s.setCurrentNode(null);
+        shouldDelay = true;
         break;
       case "negative-cycle":
         s.logEvent("! negative cycle detected");
+        shouldDelay = true;
         break;
       case "done":
         finalDist = ev.dist;
@@ -65,7 +81,9 @@ export async function runSimulation() {
         break;
     }
     // Live speed: read current slider each tick.
-    await new Promise(r => setTimeout(r, stepDelay()));
+    if (shouldDelay) {
+      await new Promise(r => setTimeout(r, stepDelay()));
+    }
   }
 
   const ms = performance.now() - start;
@@ -78,6 +96,7 @@ export async function runSimulation() {
     s.setPhases({ ...phases });
   }
   s.setPath(path);
+  s.setActiveLine(null);
 
   const rt: Record<NodeId, { nextHop: NodeId | null; cost: number; hops: number }> = {};
   for (const n of nodes) {

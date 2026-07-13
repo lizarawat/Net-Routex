@@ -20,6 +20,7 @@ export const Route = createFileRoute("/simulator")({
 
 const MODES = [
   { id: "build", label: "Build" },
+  { id: "drag", label: "Drag" },
   { id: "simulate", label: "Simulate" },
 ] as const;
 

@@ -17,30 +17,174 @@ export function ControlPanel() {
   } = useSim();
 
   function randomTopology(weighted: boolean) {
-    const n = 8;
-    const nodes = Array.from({ length: n }, (_, i) => ({
-      id: `R${i}`,
-      label: `R${i}`,
-      x: 120 + Math.random() * 660,
-      y: 80 + Math.random() * 460,
-    }));
-    const links = [];
-    for (let i = 0; i < n; i++) {
-      const w = weighted ? 1 + Math.floor(Math.random() * 9) : 1;
-      links.push({ id: `L${i}`, from: `R${i}`, to: `R${(i + 1) % n}`, weight: w });
+    const layoutType = Math.floor(Math.random() * 3); // 0, 1, 2
+    let nodes: Array<{ id: string; label: string; x: number; y: number }> = [];
+    let links: Array<{ id: string; from: string; to: string; weight: number }> = [];
+    let linkIdCounter = 0;
+
+    function getWeight() {
+      return weighted ? 1 + Math.floor(Math.random() * 9) : 1;
     }
-    let idc = n;
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 2; j < n; j++) {
+
+    if (layoutType === 0) {
+      // 1. Circular Mesh (Ring with chords)
+      const n = 8;
+      const centerX = 450;
+      const centerY = 310;
+      const rx = 320;
+      const ry = 220;
+
+      nodes = Array.from({ length: n }, (_, i) => {
+        const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+        return {
+          id: `R${i}`,
+          label: `R${i}`,
+          x: Math.round(centerX + rx * Math.cos(angle)),
+          y: Math.round(centerY + ry * Math.sin(angle)),
+        };
+      });
+
+      // Ring connections
+      for (let i = 0; i < n; i++) {
+        links.push({
+          id: `L${linkIdCounter++}`,
+          from: `R${i}`,
+          to: `R${(i + 1) % n}`,
+          weight: getWeight(),
+        });
+      }
+
+      // Chordal connections
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 2; j < n; j++) {
+          if (i === 0 && j === n - 1) continue; // skip wrap-around adjacent
+          if (Math.random() < 0.3) {
+            links.push({
+              id: `L${linkIdCounter++}`,
+              from: `R${i}`,
+              to: `R${j}`,
+              weight: getWeight(),
+            });
+          }
+        }
+      }
+    } else if (layoutType === 1) {
+      // 2. Double-Row Grid Mesh (2x4)
+      const cols = 4;
+      const colWidth = 190;
+      const startX = 180;
+      const rowY1 = 180;
+      const rowY2 = 440;
+
+      // Row 1 (0 to 3) and Row 2 (4 to 7)
+      for (let i = 0; i < 8; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        nodes.push({
+          id: `R${i}`,
+          label: `R${i}`,
+          x: startX + col * colWidth,
+          y: row === 0 ? rowY1 : rowY2,
+        });
+      }
+
+      // Horizontal links
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < cols - 1; c++) {
+          const u = r * cols + c;
+          const v = u + 1;
+          links.push({
+            id: `L${linkIdCounter++}`,
+            from: `R${u}`,
+            to: `R${v}`,
+            weight: getWeight(),
+          });
+        }
+      }
+
+      // Vertical links
+      for (let c = 0; c < cols; c++) {
+        links.push({
+          id: `L${linkIdCounter++}`,
+          from: `R${c}`,
+          to: `R${c + cols}`,
+          weight: getWeight(),
+        });
+      }
+
+      // Optional Diagonal links
+      for (let c = 0; c < cols - 1; c++) {
         if (Math.random() < 0.25) {
-          const w = weighted ? 1 + Math.floor(Math.random() * 9) : 1;
-          links.push({ id: `L${idc++}`, from: `R${i}`, to: `R${j}`, weight: w });
+          links.push({
+            id: `L${linkIdCounter++}`,
+            from: `R${c}`,
+            to: `R${c + cols + 1}`,
+            weight: getWeight(),
+          });
+        }
+        if (Math.random() < 0.25) {
+          links.push({
+            id: `L${linkIdCounter++}`,
+            from: `R${c + 1}`,
+            to: `R${c + cols}`,
+            weight: getWeight(),
+          });
+        }
+      }
+    } else {
+      // 3. Star-Ring (Hub and Spoke)
+      const nSpokes = 7;
+      const centerX = 450;
+      const centerY = 310;
+      const rx = 290;
+      const ry = 210;
+
+      // Hub node in center
+      nodes.push({ id: "R0", label: "R0", x: centerX, y: centerY });
+
+      // Spoke nodes in circle
+      for (let i = 1; i <= nSpokes; i++) {
+        const angle = ((i - 1) * 2 * Math.PI) / nSpokes - Math.PI / 2;
+        nodes.push({
+          id: `R${i}`,
+          label: `R${i}`,
+          x: Math.round(centerX + rx * Math.cos(angle)),
+          y: Math.round(centerY + ry * Math.sin(angle)),
+        });
+      }
+
+      // Spoke connections
+      for (let i = 1; i <= nSpokes; i++) {
+        links.push({
+          id: `L${linkIdCounter++}`,
+          from: "R0",
+          to: `R${i}`,
+          weight: getWeight(),
+        });
+      }
+
+      // Perimeter connections
+      for (let i = 1; i <= nSpokes; i++) {
+        const next = i === nSpokes ? 1 : i + 1;
+        if (Math.random() < 0.5) {
+          links.push({
+            id: `L${linkIdCounter++}`,
+            from: `R${i}`,
+            to: `R${next}`,
+            weight: getWeight(),
+          });
         }
       }
     }
+
     loadTopology(nodes, links);
     if (!weighted) setUnweighted(true);
-    logEvent(`random ${weighted ? "weighted" : "unweighted"} topology: ${nodes.length} routers, ${links.length} links`);
+    
+    let layoutName = "circular";
+    if (layoutType === 1) layoutName = "grid";
+    if (layoutType === 2) layoutName = "star-ring";
+    
+    logEvent(`random ${weighted ? "weighted" : "unweighted"} ${layoutName} topology: ${nodes.length} routers, ${links.length} links`);
   }
 
   function exportJson() {

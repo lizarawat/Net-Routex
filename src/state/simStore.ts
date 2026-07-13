@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { AlgoName, Link, NodeId, RouterNode } from "@/lib/graph/types";
 
-export type Mode = "build" | "simulate";
+export type Mode = "build" | "simulate" | "drag";
 export type NodePhase = "idle" | "frontier" | "current" | "settled";
 
 interface Stats {
@@ -35,6 +35,9 @@ interface State {
   events: string[];
   packetProgress: number | null;
   linkFailure: boolean;
+  activeLine: number | null;
+  ranLines: number[];
+  distances: Record<NodeId, number>;
 
   addNode: (x: number, y: number) => void;
   deleteNode: (id: NodeId) => void;
@@ -69,6 +72,10 @@ interface State {
   logEvent: (msg: string) => void;
   setRunning: (r: boolean) => void;
   setPacketProgress: (p: number | null) => void;
+  setActiveLine: (line: number | null) => void;
+  setRanLines: (lines: number[]) => void;
+  addRanLine: (line: number) => void;
+  setDistances: (d: Record<NodeId, number>) => void;
 }
 
 let nodeCounter = 0;
@@ -97,6 +104,9 @@ export const useSim = create<State>((set) => ({
   events: [],
   packetProgress: null,
   linkFailure: false,
+  activeLine: null,
+  ranLines: [],
+  distances: {},
 
   addNode: (x, y) => set(s => {
     const id = `R${nodeCounter++}`;
@@ -176,10 +186,11 @@ export const useSim = create<State>((set) => ({
     nodes: [], links: [], selectedNode: null, selectedNodes: [], selectedLink: null, linkStart: null,
     source: null, destination: null, phases: {}, currentNode: null, path: [],
     routingTable: {}, stats: emptyStats, events: [], packetProgress: null, linkFailure: false,
+    activeLine: null, ranLines: [], distances: {},
   }); },
   clearAlgoState: () => set({
     phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
-    events: [], packetProgress: null, running: false,
+    events: [], packetProgress: null, running: false, activeLine: null, ranLines: [], distances: {},
   }),
   loadTopology: (nodes, links) => {
     let maxN = -1, maxL = -1;
@@ -193,6 +204,7 @@ export const useSim = create<State>((set) => ({
       source: null, destination: null,
       phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
       events: [], packetProgress: null, linkFailure: links.some(l => l.failed),
+      activeLine: null, ranLines: [], distances: {},
     });
   },
 
@@ -206,4 +218,11 @@ export const useSim = create<State>((set) => ({
   })),
   setRunning: (r) => set({ running: r }),
   setPacketProgress: (p) => set({ packetProgress: p }),
+  setActiveLine: (line) => set({ activeLine: line }),
+  setRanLines: (lines) => set({ ranLines: lines }),
+  addRanLine: (line) => set(s => {
+    if (s.ranLines.includes(line)) return {};
+    return { ranLines: [...s.ranLines, line] };
+  }),
+  setDistances: (d) => set({ distances: d }),
 }));

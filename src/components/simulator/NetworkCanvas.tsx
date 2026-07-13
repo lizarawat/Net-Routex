@@ -12,6 +12,7 @@ type Dialog =
 export function NetworkCanvas({ width = 900, height = 620 }: Props) {
   const nodes = useSim(s => s.nodes);
   const links = useSim(s => s.links);
+  const distances = useSim(s => s.distances);
   const phases = useSim(s => s.phases);
   const path = useSim(s => s.path);
   const packetProgress = useSim(s => s.packetProgress);
@@ -51,12 +52,19 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
     return s;
   }, [path]);
 
+  function toSVG(clientX: number, clientY: number) {
+    const svg = svgRef.current;
+    if (!svg) return { x: clientX, y: clientY };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM()!.inverse());
+    return { x: svgP.x, y: svgP.y };
+  }
+
   function toWorld(clientX: number, clientY: number) {
-    const svg = svgRef.current!;
-    const rect = svg.getBoundingClientRect();
-    const px = ((clientX - rect.left) / rect.width) * width;
-    const py = ((clientY - rect.top) / rect.height) * height;
-    return { x: (px - view.tx) / view.scale, y: (py - view.ty) / view.scale };
+    const svgP = toSVG(clientX, clientY);
+    return { x: (svgP.x - view.tx) / view.scale, y: (svgP.y - view.ty) / view.scale };
   }
 
   function isBg(el: EventTarget | null) {
@@ -146,7 +154,7 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
   }
 
   function onNodeMouseDown(e: React.MouseEvent, n: RouterNode) {
-    if (mode !== "build") return;
+    if (mode !== "build" && mode !== "drag") return;
     if (e.button !== 0) return;
     if (linkStart) return;
     setDragId(n.id);
@@ -212,14 +220,11 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
   }
   function zoomAround(clientX: number, clientY: number, factor: number) {
     setView(v => {
-      const svg = svgRef.current!;
-      const rect = svg.getBoundingClientRect();
-      const px = ((clientX - rect.left) / rect.width) * width;
-      const py = ((clientY - rect.top) / rect.height) * height;
+      const svgP = toSVG(clientX, clientY);
       const newScale = Math.max(0.4, Math.min(2.5, v.scale * factor));
       // Keep point under cursor fixed:
-      const tx = px - ((px - v.tx) / v.scale) * newScale;
-      const ty = py - ((py - v.ty) / v.scale) * newScale;
+      const tx = svgP.x - ((svgP.x - v.tx) / v.scale) * newScale;
+      const ty = svgP.y - ((svgP.y - v.ty) / v.scale) * newScale;
       return { scale: newScale, tx, ty };
     });
   }
@@ -303,7 +308,13 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
-        className="h-full w-full cursor-crosshair select-none"
+        className={`h-full w-full select-none ${
+          mode === "drag"
+            ? dragId
+              ? "cursor-grabbing"
+              : "cursor-grab"
+            : "cursor-crosshair"
+        }`}
         onClick={onBgClick}
         onMouseDown={onBgMouseDown}
         onMouseMove={onSvgMove}
@@ -391,20 +402,34 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
                  onDoubleClick={(e) => onNodeDblClick(e, n)}
                  onContextMenu={(e) => onNodeContext(e, n)}
                  onMouseDown={(e) => onNodeMouseDown(e, n)}
-                 className="cursor-pointer"
+                 className={mode === "drag" ? (dragId ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer"}
                  transform={`translate(${n.x}, ${n.y})`}>
                 {isSel && (
-                  <circle r={22} fill="none" stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.85} />
+                  <rect x={-20} y={-19} width={40} height={36} rx={6} fill="none" stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.85} />
                 )}
                 {ph === "current" && (
-                  <circle r={14} fill="none" stroke="var(--accent)" strokeWidth={2}>
-                    <animate attributeName="r" from="14" to="28" dur="1.2s" repeatCount="indefinite" />
+                  <rect x={-18} y={-17} width={36} height={30} rx={5} fill="none" stroke="var(--accent)" strokeWidth={2}>
+                    <animate attributeName="width" from="36" to="48" dur="1.2s" repeatCount="indefinite" />
+                    <animate attributeName="height" from="30" to="40" dur="1.2s" repeatCount="indefinite" />
+                    <animate attributeName="x" from="-18" to="-24" dur="1.2s" repeatCount="indefinite" />
+                    <animate attributeName="y" from="-17" to="-22" dur="1.2s" repeatCount="indefinite" />
                     <animate attributeName="opacity" from="0.8" to="0" dur="1.2s" repeatCount="indefinite" />
-                  </circle>
+                  </rect>
                 )}
-                <circle r={16} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : 2}
+                
+                {/* Computer Stand & Base */}
+                <rect x={-3} y={7} width={6} height={5} fill={stroke} opacity={0.9} />
+                <path d="M-9,12 L9,12 L7,14 L-7,14 Z" fill={stroke} opacity={0.9} />
+                
+                {/* Computer Monitor Outer Frame */}
+                <rect x={-16} y={-15} width={32} height={22} rx={3} ry={3} fill={fill} stroke={stroke} strokeWidth={isSel ? 3 : 2}
                   style={{ filter: (isSrc || isDst || ph !== "idle") ? `drop-shadow(0 0 6px ${stroke})` : undefined }} />
-                <text textAnchor="middle" dy={4} fontFamily="var(--font-mono)" fontSize={11} fill="var(--foreground)">
+                  
+                {/* Inner Screen */}
+                <rect x={-13} y={-12} width={26} height={16} rx={1} ry={1} fill="black" opacity={0.4} />
+                
+                {/* Label text inside screen */}
+                <text textAnchor="middle" y={-1} fontFamily="var(--font-mono)" fontSize={9} fill="var(--foreground)" className="font-bold">
                   {n.label}
                 </text>
                 {(isSrc || isDst) && (
@@ -413,6 +438,22 @@ export function NetworkCanvas({ width = 900, height = 620 }: Props) {
                     {isSrc ? "SRC" : "DST"}
                   </text>
                 )}
+                {distances[n.id] !== undefined && (() => {
+                  const dVal = distances[n.id];
+                  const isInf = dVal === Infinity;
+                  return (
+                    <text
+                      textAnchor="middle"
+                      y={34}
+                      fontFamily="var(--font-mono)"
+                      fontSize={18}
+                      fill={isInf ? "var(--muted-foreground)" : "var(--accent)"}
+                      className={isInf ? "opacity-60" : "opacity-95 font-bold"}
+                    >
+                      {isInf ? "d=∞" : `d=${dVal}`}
+                    </text>
+                  );
+                })()}
               </g>
             );
           })}

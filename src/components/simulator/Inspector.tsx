@@ -60,6 +60,8 @@ export function Inspector() {
   const events = useSim(s => s.events);
   const path = useSim(s => s.path);
   const currentNode = useSim(s => s.currentNode);
+  const activeLine = useSim(s => s.activeLine);
+  const ranLines = useSim(s => s.ranLines);
 
   return (
     <div className="flex h-full flex-col">
@@ -132,12 +134,28 @@ export function Inspector() {
             <div className="mb-2 font-mono text-[10px] uppercase text-muted-foreground">
               {algo}
             </div>
-            <pre className="font-mono text-[11px] leading-relaxed">
-              {PSEUDO[algo].map((line, i) => (
-                <div key={i} className={currentNode && line.includes("extractMin") ? "text-warn" : "text-foreground"}>
-                  <span className="mr-2 text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>{line}
-                </div>
-              ))}
+            <pre className="font-mono text-[11px] leading-relaxed select-none">
+              {PSEUDO[algo].map((line, i) => {
+                const isActive = activeLine === i;
+                const isRan = ranLines.includes(i);
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-center py-0.5 px-2 transition-all duration-150 rounded-sm ${
+                      isActive
+                        ? "bg-[rgba(77,214,255,0.12)] text-accent border-l-2 border-accent font-bold shadow-[0_0_8px_rgba(77,214,255,0.15)] glow-cyan"
+                        : isRan
+                        ? "text-[var(--accent-3)] border-l-2 border-transparent opacity-95"
+                        : "text-muted-foreground border-l-2 border-transparent opacity-50"
+                    }`}
+                  >
+                    <span className="mr-3 text-[10px] font-normal text-muted-foreground/60 w-4 text-right">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="font-mono">{line}</span>
+                  </div>
+                );
+              })}
             </pre>
           </div>
         )}
@@ -159,13 +177,54 @@ function StatRow({ k, v, accent }: { k: string; v: number; accent?: boolean }) {
 
 function EventLog({ events }: { events: string[] }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => { ref.current?.scrollTo({ top: ref.current.scrollHeight }); }, [events]);
+
+  function getRawLogs() {
+    return events.map(e => `> ${e}`).join("\n");
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(getRawLogs());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDownload() {
+    const blob = new Blob([getRawLogs()], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `netroutex-logs-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
-    <div ref={ref} className="h-full max-h-[440px] overflow-y-auto rounded-sm border border-border bg-black/40 p-2 font-mono text-[11px] text-accent-3">
-      {events.length === 0 && <div className="text-muted-foreground">Waiting for events…</div>}
-      {events.map((e, i) => (
-        <div key={i} className="whitespace-pre-wrap">&gt; {e}</div>
-      ))}
+    <div className="flex flex-col gap-2 max-h-[440px] h-full">
+      <div className="flex justify-end gap-2 shrink-0">
+        <button
+          onClick={handleCopy}
+          disabled={events.length === 0}
+          className="rounded border border-border bg-[var(--panel-2)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground transition hover:border-accent hover:text-accent disabled:opacity-50 disabled:hover:border-border disabled:hover:text-muted-foreground cursor-pointer"
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+        <button
+          onClick={handleDownload}
+          disabled={events.length === 0}
+          className="rounded border border-border bg-[var(--panel-2)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground transition hover:border-accent hover:text-accent disabled:opacity-50 disabled:hover:border-border disabled:hover:text-muted-foreground cursor-pointer"
+        >
+          Download (.txt)
+        </button>
+      </div>
+      <div ref={ref} className="flex-1 overflow-y-auto rounded-sm border border-border bg-black/40 p-2 font-mono text-[11px] text-accent-3">
+        {events.length === 0 && <div className="text-muted-foreground">Waiting for events…</div>}
+        {events.map((e, i) => (
+          <div key={i} className="whitespace-pre-wrap">&gt; {e}</div>
+        ))}
+      </div>
     </div>
   );
 }
