@@ -1,0 +1,138 @@
+import { runAlgorithm, reconstructPath } from "@/lib/algorithms";
+import type { AlgoEvent, NodeId } from "@/lib/graph/types";
+import { useSim } from "@/state/simStore";
+
+let cancelled = false;
+export function cancelRun() { cancelled = true; }
+
+function currentSpeed() { return useSim.getState().speed || 1; }
+function stepDelay() { return Math.max(20, 380 / currentSpeed()); }
+
+export async function runSimulation() {
+  const s = useSim.getState();
+  const { nodes, links, source, destination, algo } = s;
+  if (!source || !destination) {
+    s.logEvent("! Select source and destination first");
+    return;
+  }
+  cancelled = false;
+  s.clearAlgoState();
+  s.setRunning(true);
+  s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination}`);
+
+  const gen = runAlgorithm(algo, nodes, links, source);
+  const phases: Record<NodeId, "idle" | "frontier" | "current" | "settled"> = {};
+  for (const n of nodes) phases[n.id] = "idle";
+  let relaxed = 0;
+  let opCount = 0;
+  let finalDist: Record<NodeId, number> = {};
+  let finalPrev: Record<NodeId, NodeId | null> = {};
+
+  const start = performance.now();
+
+  for (const ev of gen as Generator<AlgoEvent>) {
+    if (cancelled) { s.setRunning(false); return; }
+    switch (ev.type) {
+      case "init":
+        s.logEvent(`init: dist[${ev.source}]=0`);
+        break;
+      case "enqueue":
+        if (phases[ev.node] !== "settled") phases[ev.node] = "frontier";
+        s.setPhases({ ...phases });
+        s.logEvent(`enqueue ${ev.node} (d=${ev.dist})`);
+        break;
+      case "visit":
+        s.setCurrentNode(ev.node);
+        phases[ev.node] = "current";
+        s.setPhases({ ...phases });
+        break;
+      case "relax":
+        relaxed++;
+        s.logEvent(`relax ${ev.from}→${ev.to}: ${ev.oldDist === Infinity ? "∞" : ev.oldDist} → ${ev.newDist}`);
+        break;
+      case "settle":
+        phases[ev.node] = "settled";
+        s.setPhases({ ...phases });
+        s.setCurrentNode(null);
+        break;
+      case "negative-cycle":
+        s.logEvent("! negative cycle detected");
+        break;
+      case "done":
+        finalDist = ev.dist;
+        finalPrev = ev.prev;
+        opCount = ev.opCount;
+        break;
+    }
+    // Live speed: read current slider each tick.
+    await new Promise(r => setTimeout(r, stepDelay()));
+  }
+
+  const ms = performance.now() - start;
+  const path = reconstructPath(finalPrev, source, destination);
+  const cost = path.length ? finalDist[destination] ?? 0 : 0;
+  const visitedCount = Object.values(phases).filter(p => p === "settled").length;
+
+  if (path.length) {
+    for (const id of path) phases[id] = "settled";
+    s.setPhases({ ...phases });
+  }
+  s.setPath(path);
+
+  const rt: Record<NodeId, { nextHop: NodeId | null; cost: number; hops: number }> = {};
+  for (const n of nodes) {
+    if (n.id === source) continue;
+    const p = reconstructPath(finalPrev, source, n.id);
+    if (!p.length) { rt[n.id] = { nextHop: null, cost: Infinity, hops: 0 }; continue; }
+    rt[n.id] = {
+      nextHop: p.length > 1 ? p[1] : null,
+      cost: finalDist[n.id] ?? Infinity,
+      hops: p.length - 1,
+    };
+  }
+  s.setRoutingTable(rt);
+  s.setStats({
+    hops: Math.max(0, path.length - 1),
+    cost: path.length ? cost : 0,
+    visitedCount,
+    edgesRelaxed: relaxed,
+    opCount,
+    ms: Math.round(ms * 100) / 100,
+  });
+
+  if (!path.length) {
+    s.logEvent(`! ${destination} unreachable from ${source}`);
+    s.setRunning(false);
+    return;
+  }
+  s.logEvent(`✓ path found: ${path.join(" → ")} (cost ${cost}, ${path.length - 1} hops, ${Math.round(ms)}ms)`);
+
+  // Packet animation: rAF-driven, respects live speed changes.
+  const totalSegments = path.length - 1;
+  const msPerSegmentAtNormalSpeed = 550;
+  await new Promise<void>((resolve) => {
+    let progress = 0;
+    let last = performance.now();
+    function frame(now: number) {
+      if (cancelled) {
+        useSim.getState().setPacketProgress(null);
+        useSim.getState().setRunning(false);
+        resolve();
+        return;
+      }
+      const dt = now - last;
+      last = now;
+      const segPerMs = 1 / (msPerSegmentAtNormalSpeed / currentSpeed());
+      progress += dt * segPerMs;
+      if (progress >= totalSegments) {
+        useSim.getState().setPacketProgress(totalSegments);
+        useSim.getState().setRunning(false);
+        resolve();
+        return;
+      }
+      useSim.getState().setPacketProgress(progress);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
+}

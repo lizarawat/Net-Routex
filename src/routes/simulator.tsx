@@ -1,0 +1,131 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { NetworkCanvas } from "@/components/simulator/NetworkCanvas";
+import { ControlPanel } from "@/components/simulator/ControlPanel";
+import { Inspector } from "@/components/simulator/Inspector";
+import { useSim } from "@/state/simStore";
+import { useEffect } from "react";
+import { runSimulation, cancelRun } from "@/lib/simEngine";
+
+export const Route = createFileRoute("/simulator")({
+  head: () => ({
+    meta: [
+      { title: "Simulator — NetRouteX" },
+      { name: "description", content: "Interactive network routing simulator with Dijkstra, BFS, DFS and Bellman-Ford visualizations." },
+      { property: "og:title", content: "NetRouteX Simulator" },
+      { property: "og:description", content: "Build a network and watch shortest-path algorithms execute step by step." },
+    ],
+  }),
+  component: SimulatorPage,
+});
+
+const MODES = [
+  { id: "build", label: "Build" },
+  { id: "simulate", label: "Simulate" },
+] as const;
+
+function SimulatorPage() {
+  const mode = useSim(s => s.mode);
+  const setMode = useSim(s => s.setMode);
+  const running = useSim(s => s.running);
+  const linkFailure = useSim(s => s.linkFailure);
+  const source = useSim(s => s.source);
+  const destination = useSim(s => s.destination);
+  const nodes = useSim(s => s.nodes);
+  const links = useSim(s => s.links);
+  const algo = useSim(s => s.algo);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      if (t?.tagName === "INPUT" || t?.tagName === "SELECT" || t?.tagName === "TEXTAREA") return;
+      if (e.key === "Enter") { e.preventDefault(); if (!running) runSimulation(); }
+      else if (e.key === " ") { e.preventDefault(); cancelRun(); }
+      else if (e.key.toLowerCase() === "r") { useSim.getState().clearAlgoState(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [running]);
+
+  return (
+    <div className="relative z-10 mx-auto flex min-h-screen max-w-[1600px] flex-col gap-3 p-3">
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border pb-3 sm:flex sm:flex-wrap sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <Link to="/" className="shrink-0 font-display text-lg font-black tracking-[0.2em] text-accent glow-cyan">
+            NetRouteX
+          </Link>
+          <div className="truncate font-body text-sm text-muted-foreground">
+            Routing Simulator
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusPill
+            state={linkFailure ? "danger" : source && destination ? "safe" : "idle"}
+            label={linkFailure ? "Link down" : source && destination ? "Ready" : "Idle"}
+          />
+          <div className="flex overflow-hidden rounded-md border border-border">
+            {MODES.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition ${
+                  mode === m.id ? "bg-accent text-black" : "text-muted-foreground hover:text-accent"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="grid flex-1 gap-3 lg:grid-cols-[340px_1fr_340px]">
+        <aside className="rounded-md border border-border bg-[var(--panel)]">
+          <PanelHead>Controls</PanelHead>
+          <ControlPanel />
+        </aside>
+
+        <section className="min-h-[520px] rounded-md border border-border bg-[var(--panel)]">
+          <PanelHead>Network canvas</PanelHead>
+          <div className="h-[calc(100%-32px)] min-h-[520px] p-2">
+            <NetworkCanvas />
+          </div>
+        </section>
+
+        <aside className="rounded-md border border-border bg-[var(--panel)]">
+          <PanelHead>Inspector</PanelHead>
+          <div className="h-[calc(100%-32px)]">
+            <Inspector />
+          </div>
+        </aside>
+      </main>
+
+      <footer className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border bg-[var(--panel)] px-3 py-2 font-mono text-[10px] text-muted-foreground">
+        <span>Algorithm: <span className="text-accent">{algo}</span></span>
+        <span>Routers: <span className="text-foreground">{nodes.length}</span></span>
+        <span>Links: <span className="text-foreground">{links.length}</span></span>
+        <span className="ml-auto text-[10px] text-muted-foreground">Full docs in the Inspector's Pseudocode tab.</span>
+      </footer>
+    </div>
+  );
+}
+
+function PanelHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-8 items-center border-b border-border px-3 font-display text-[11px] uppercase tracking-widest text-accent">
+      {children}
+    </div>
+  );
+}
+
+function StatusPill({ state, label }: { state: "safe" | "danger" | "idle"; label: string }) {
+  const color =
+    state === "danger" ? "text-accent-2 border-accent-2" :
+    state === "safe" ? "text-accent-3 border-accent-3" :
+    "text-muted-foreground border-border";
+  return (
+    <div className={`flex items-center gap-2 rounded-md border px-3 py-1 font-mono text-[10px] tracking-widest ${color} ${state === "danger" ? "soft-pulse" : ""}`}>
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" style={{ boxShadow: "0 0 6px currentColor" }} />
+      {label}
+    </div>
+  );
+}
