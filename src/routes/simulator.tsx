@@ -118,20 +118,12 @@ function SimulatorPage() {
           {/* Lev AI Helper Section */}
           <div className="rounded-md border border-border bg-[var(--panel)] shrink-0">
             <PanelHead>Lev (AI Helper)</PanelHead>
-            <div className="flex gap-3 p-3 items-start">
-              <img
-                src="/lev-robot.jpg"
-                alt="Lev the Robot"
-                className="h-12 w-12 shrink-0 rounded-full border border-accent object-cover shadow-[0_0_8px_rgba(77,214,255,0.4)]"
-              />
-              <div className="flex-1 font-body text-[11px] leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 relative">
-                {/* Speech bubble pointer */}
-                <div className="absolute left-[-5px] top-4 h-2 w-2 rotate-45 border-b border-l border-border bg-[var(--panel-2)]" />
-                
+            <div className="p-3">
+              <div className="font-body text-xs leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 relative">
                 {/* Scrollable list with fixed height */}
                 <div 
                   ref={explScrollRef}
-                  className="relative z-10 font-mono text-[10px] h-[72px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-border"
+                  className="relative z-10 font-mono text-xs h-[72px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-border"
                 >
                   {explanations.length === 0 ? (
                     <p>Hi, I'm Lev! Choose a Source and Destination router, select an algorithm, and click RUN. I'll explain what's happening step-by-step!</p>
@@ -139,7 +131,7 @@ function SimulatorPage() {
                     explanations.map((exp, idx) => (
                       <p 
                         key={idx} 
-                        className={idx === explanations.length - 1 ? "text-accent font-bold" : "text-muted-foreground opacity-70"}
+                        className={idx === explanations.length - 1 ? "text-foreground font-bold" : "text-foreground"}
                       >
                         • {exp}
                       </p>
