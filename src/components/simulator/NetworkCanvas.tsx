@@ -9,7 +9,24 @@ type Dialog =
   | { kind: "linkMenu"; x: number; y: number; linkId: string }
   | { kind: "nodeMenu"; x: number; y: number; nodeId: NodeId };
 
-export function NetworkCanvas({ width = 900, height = 620 }: Props) {
+export function NetworkCanvas({ width: initialWidth = 900, height: initialHeight = 620 }: Props) {
+  const [dims, setDims] = useState({ w: initialWidth, h: initialHeight });
+  const width = dims.w;
+  const height = dims.h;
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width: w, height: h } = entry.contentRect;
+        if (w > 0 && h > 0) {
+          setDims({ w, h });
+        }
+      }
+    });
+    observer.observe(wrapRef.current);
+    return () => observer.disconnect();
+  }, []);
   const nodes = useSim(s => s.nodes);
   const links = useSim(s => s.links);
   const distances = useSim(s => s.distances);
