@@ -3,7 +3,7 @@ import { NetworkCanvas } from "@/components/simulator/NetworkCanvas";
 import { ControlPanel } from "@/components/simulator/ControlPanel";
 import { Inspector } from "@/components/simulator/Inspector";
 import { useSim } from "@/state/simStore";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { runSimulation, cancelRun } from "@/lib/simEngine";
 
 export const Route = createFileRoute("/simulator")({
@@ -34,7 +34,14 @@ function SimulatorPage() {
   const nodes = useSim(s => s.nodes);
   const links = useSim(s => s.links);
   const algo = useSim(s => s.algo);
-  const activeExplanation = useSim(s => s.activeExplanation);
+  const explanations = useSim(s => s.explanations);
+
+  const explScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (explScrollRef.current) {
+      explScrollRef.current.scrollTop = explScrollRef.current.scrollHeight;
+    }
+  }, [explanations]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -117,12 +124,28 @@ function SimulatorPage() {
                 alt="Lev the Robot"
                 className="h-12 w-12 shrink-0 rounded-full border border-accent object-cover shadow-[0_0_8px_rgba(77,214,255,0.4)]"
               />
-              <div className="flex-1 font-body text-[11px] leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 min-h-[50px] relative">
+              <div className="flex-1 font-body text-[11px] leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 relative">
                 {/* Speech bubble pointer */}
                 <div className="absolute left-[-5px] top-4 h-2 w-2 rotate-45 border-b border-l border-border bg-[var(--panel-2)]" />
-                <p className="relative z-10 font-mono text-[10px]">
-                  {activeExplanation ?? "Hi, I'm Lev! Choose a Source and Destination router, select an algorithm, and click RUN. I'll explain what's happening step-by-step!"}
-                </p>
+                
+                {/* Scrollable list with fixed height */}
+                <div 
+                  ref={explScrollRef}
+                  className="relative z-10 font-mono text-[10px] h-[72px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-border"
+                >
+                  {explanations.length === 0 ? (
+                    <p>Hi, I'm Lev! Choose a Source and Destination router, select an algorithm, and click RUN. I'll explain what's happening step-by-step!</p>
+                  ) : (
+                    explanations.map((exp, idx) => (
+                      <p 
+                        key={idx} 
+                        className={idx === explanations.length - 1 ? "text-accent font-bold" : "text-muted-foreground opacity-70"}
+                      >
+                        • {exp}
+                      </p>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
