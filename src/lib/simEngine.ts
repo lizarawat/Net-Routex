@@ -46,31 +46,37 @@ export async function runSimulation() {
       case "init":
         Object.assign(distances, ev.dist);
         s.setDistances({ ...distances });
+        s.setActiveExplanation(`I am starting the search at the Source router (${ev.source}). Its distance is set to 0, and all other routers are set to infinity because we haven't visited them yet!`);
         s.logEvent(`init: dist[${ev.source}]=0`);
         break;
       case "enqueue":
         if (phases[ev.node] !== "settled") phases[ev.node] = "frontier";
         s.setPhases({ ...phases });
+        s.setActiveExplanation(`I added router ${ev.node} to the queue of nodes to inspect next. (Current estimated distance: ${ev.dist === Infinity ? "∞" : ev.dist})`);
         s.logEvent(`enqueue ${ev.node} (d=${ev.dist})`);
         break;
       case "visit":
         s.setCurrentNode(ev.node);
         phases[ev.node] = "current";
         s.setPhases({ ...phases });
+        s.setActiveExplanation(`I am visiting router ${ev.node} now. I will look at all the outgoing cables connected to it to see if we can find any shortcuts.`);
         break;
       case "relax":
         relaxed++;
         distances[ev.to] = ev.newDist;
         s.setDistances({ ...distances });
+        s.setActiveExplanation(`Found a shortcut! Going through ${ev.from} to reach ${ev.to} is shorter. We update its distance from ${ev.oldDist === Infinity ? "∞" : ev.oldDist} to ${ev.newDist}.`);
         s.logEvent(`relax ${ev.from}→${ev.to}: ${ev.oldDist === Infinity ? "∞" : ev.oldDist} → ${ev.newDist}`);
         break;
       case "settle":
         phases[ev.node] = "settled";
         s.setPhases({ ...phases });
         s.setCurrentNode(null);
+        s.setActiveExplanation(`I have locked in the final shortest path to router ${ev.node}. This node is now settled, meaning we won't need to check it again.`);
         shouldDelay = true;
         break;
       case "negative-cycle":
+        s.setActiveExplanation(`Oh no! I detected a negative weight cycle. The path cost would keep dropping to negative infinity forever, so we must stop!`);
         s.logEvent("! negative cycle detected");
         shouldDelay = true;
         break;
@@ -78,6 +84,7 @@ export async function runSimulation() {
         finalDist = ev.dist;
         finalPrev = ev.prev;
         opCount = ev.opCount;
+        s.setActiveExplanation(`Success! We have found the shortest paths to all reachable nodes from the source. The shortest route is highlighted in cyan!`);
         break;
     }
     // Live speed: read current slider each tick.

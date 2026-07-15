@@ -38,6 +38,7 @@ interface State {
   activeLine: number | null;
   ranLines: number[];
   distances: Record<NodeId, number>;
+  activeExplanation: string | null;
 
   addNode: (x: number, y: number) => void;
   deleteNode: (id: NodeId) => void;
@@ -76,6 +77,7 @@ interface State {
   setRanLines: (lines: number[]) => void;
   addRanLine: (line: number) => void;
   setDistances: (d: Record<NodeId, number>) => void;
+  setActiveExplanation: (msg: string | null) => void;
 }
 
 let nodeCounter = 0;
@@ -107,6 +109,7 @@ export const useSim = create<State>((set) => ({
   activeLine: null,
   ranLines: [],
   distances: {},
+  activeExplanation: null,
 
   addNode: (x, y) => set(s => {
     const id = `R${nodeCounter++}`;
@@ -186,11 +189,11 @@ export const useSim = create<State>((set) => ({
     nodes: [], links: [], selectedNode: null, selectedNodes: [], selectedLink: null, linkStart: null,
     source: null, destination: null, phases: {}, currentNode: null, path: [],
     routingTable: {}, stats: emptyStats, events: [], packetProgress: null, linkFailure: false,
-    activeLine: null, ranLines: [], distances: {},
+    activeLine: null, ranLines: [], distances: {}, activeExplanation: null,
   }); },
   clearAlgoState: () => set({
     phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
-    events: [], packetProgress: null, running: false, activeLine: null, ranLines: [], distances: {},
+    events: [], packetProgress: null, running: false, activeLine: null, ranLines: [], distances: {}, activeExplanation: null,
   }),
   loadTopology: (nodes, links) => {
     let maxN = -1, maxL = -1;
@@ -204,7 +207,7 @@ export const useSim = create<State>((set) => ({
       source: null, destination: null,
       phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
       events: [], packetProgress: null, linkFailure: links.some(l => l.failed),
-      activeLine: null, ranLines: [], distances: {},
+      activeLine: null, ranLines: [], distances: {}, activeExplanation: null,
     });
   },
 
@@ -225,4 +228,5 @@ export const useSim = create<State>((set) => ({
     return { ranLines: [...s.ranLines, line] };
   }),
   setDistances: (d) => set({ distances: d }),
+  setActiveExplanation: (msg) => set({ activeExplanation: msg }),
 }));

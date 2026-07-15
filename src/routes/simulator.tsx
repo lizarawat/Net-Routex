@@ -34,6 +34,7 @@ function SimulatorPage() {
   const nodes = useSim(s => s.nodes);
   const links = useSim(s => s.links);
   const algo = useSim(s => s.algo);
+  const activeExplanation = useSim(s => s.activeExplanation);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -104,6 +105,25 @@ function SimulatorPage() {
                 <li>• Right-click a router or link for its menu · Delete key removes selection.</li>
                 <li>• Scroll to zoom the canvas.</li>
               </ul>
+            </div>
+          </div>
+
+          {/* Lev AI Helper Section */}
+          <div className="rounded-md border border-border bg-[var(--panel)] shrink-0">
+            <PanelHead>Lev (AI Helper)</PanelHead>
+            <div className="flex gap-3 p-3 items-start">
+              <img
+                src="/lev-robot.jpg"
+                alt="Lev the Robot"
+                className="h-12 w-12 shrink-0 rounded-full border border-accent object-cover shadow-[0_0_8px_rgba(77,214,255,0.4)]"
+              />
+              <div className="flex-1 font-body text-[11px] leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 min-h-[50px] relative">
+                {/* Speech bubble pointer */}
+                <div className="absolute left-[-5px] top-4 h-2 w-2 rotate-45 border-b border-l border-border bg-[var(--panel-2)]" />
+                <p className="relative z-10 font-mono text-[10px]">
+                  {activeExplanation ?? "Hi, I'm Lev! Choose a Source and Destination router, select an algorithm, and click RUN. I'll explain what's happening step-by-step!"}
+                </p>
+              </div>
             </div>
           </div>
 
