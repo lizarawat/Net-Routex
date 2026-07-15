@@ -18,6 +18,7 @@ export async function runSimulation() {
   cancelled = false;
   s.clearAlgoState();
   s.setRunning(true);
+  s.setPaused(false);
   s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination}`);
 
   const gen = runAlgorithm(algo, nodes, links, source);
@@ -35,6 +36,10 @@ export async function runSimulation() {
   const start = performance.now();
 
   for (const ev of gen as Generator<AlgoEvent>) {
+    if (cancelled) { s.setRunning(false); s.setActiveLine(null); return; }
+    while (useSim.getState().paused && !cancelled) {
+      await new Promise(r => setTimeout(r, 50));
+    }
     if (cancelled) { s.setRunning(false); s.setActiveLine(null); return; }
     let shouldDelay = false;
     switch (ev.type) {
@@ -144,6 +149,11 @@ export async function runSimulation() {
         useSim.getState().setPacketProgress(null);
         useSim.getState().setRunning(false);
         resolve();
+        return;
+      }
+      if (useSim.getState().paused) {
+        last = now;
+        requestAnimationFrame(frame);
         return;
       }
       const dt = now - last;

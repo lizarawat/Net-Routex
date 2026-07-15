@@ -105,4 +105,3 @@ Hover: border → accent, subtle lift, smooth transition. Uses `min-w-0` / `trun
 ## Out of scope
 - Real-time multiplayer editing, mobile-first layout beyond responsive fixes, tests, i18n.
 
-Proceed?

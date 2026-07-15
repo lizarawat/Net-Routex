@@ -11,9 +11,9 @@ const ALGOS: { value: AlgoName; label: string; complexity: string }[] = [
 
 export function ControlPanel() {
   const {
-    nodes, source, destination, algo, speed, running, linkFailure, unweighted,
+    nodes, source, destination, algo, speed, running, linkFailure, unweighted, paused,
     setSource, setDestination, setAlgo, setSpeed, setUnweighted, clearAll, clearAlgoState, loadTopology,
-    logEvent,
+    logEvent, setPaused,
   } = useSim();
 
   function randomTopology(weighted: boolean) {
@@ -261,9 +261,15 @@ export function ControlPanel() {
 
       <Section title="Actions">
         <div className="grid grid-cols-2 gap-2">
-          <Btn primary onClick={() => runSimulation()} disabled={running || !source || !destination}>
-            {running ? "Running…" : "▶ Run"}
-          </Btn>
+          {running ? (
+            <Btn primary onClick={() => setPaused(!paused)}>
+              {paused ? "▶ Resume" : "⏸ Pause"}
+            </Btn>
+          ) : (
+            <Btn primary onClick={() => runSimulation()} disabled={!source || !destination}>
+              ▶ Run
+            </Btn>
+          )}
           <Btn onClick={() => { cancelRun(); clearAlgoState(); logEvent("stopped"); }}>
             ■ Stop
           </Btn>
