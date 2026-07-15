@@ -285,15 +285,7 @@ export function ControlPanel() {
         )}
       </Section>
 
-      <Section title="Tips">
-        <ul className="space-y-1 font-mono text-[10px] leading-relaxed text-muted-foreground">
-          <li>• Click canvas to place a router.</li>
-          <li>• Double-click a router, then click another to link them.</li>
-          <li>• Ctrl/⌘+click to multi-select · drag empty space to marquee-select.</li>
-          <li>• Right-click a router or link for its menu · Delete key removes selection.</li>
-          <li>• Scroll to zoom the canvas.</li>
-        </ul>
-      </Section>
+
 
       <div className="rounded border border-border bg-[var(--panel-2)] p-2 font-mono text-[10px] text-muted-foreground">
         <div className="mb-1 text-accent">Shortcuts</div>
