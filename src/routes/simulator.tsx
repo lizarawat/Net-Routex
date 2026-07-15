@@ -92,10 +92,27 @@ function SimulatorPage() {
           </div>
         </section>
 
-        <aside className="rounded-md border border-border bg-[var(--panel)]">
-          <PanelHead>Inspector</PanelHead>
-          <div className="h-[calc(100%-32px)]">
-            <Inspector />
+        <aside className="flex flex-col gap-3 h-full min-h-0">
+          {/* Tips Section */}
+          <div className="rounded-md border border-border bg-[var(--panel)] shrink-0">
+            <PanelHead>Tips</PanelHead>
+            <div className="p-3">
+              <ul className="space-y-1 font-mono text-[10px] leading-relaxed text-muted-foreground">
+                <li>• Click canvas to place a router.</li>
+                <li>• Double-click a router, then click another to link them.</li>
+                <li>• Ctrl/⌘+click to multi-select · drag empty space to marquee-select.</li>
+                <li>• Right-click a router or link for its menu · Delete key removes selection.</li>
+                <li>• Scroll to zoom the canvas.</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Inspector Section */}
+          <div className="flex-1 min-h-0 rounded-md border border-border bg-[var(--panel)]">
+            <PanelHead>Inspector</PanelHead>
+            <div className="h-[calc(100%-32px)]">
+              <Inspector />
+            </div>
           </div>
         </aside>
       </main>
