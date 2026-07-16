@@ -202,7 +202,7 @@ function EventLog({ events }: { events: string[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 max-h-[440px] h-full">
+    <div className="flex flex-col gap-2 h-full">
       <div className="flex justify-end gap-2 shrink-0">
         <button
           onClick={handleCopy}

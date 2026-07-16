@@ -19,6 +19,7 @@ export async function runSimulation() {
   s.clearAlgoState();
   s.setRunning(true);
   s.setPaused(false);
+  s.setFailed(false);
   s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination}`);
 
   const gen = runAlgorithm(algo, nodes, links, source);
@@ -82,6 +83,7 @@ export async function runSimulation() {
         break;
       case "negative-cycle":
         s.addExplanation(`Oh no! I detected a negative weight cycle. The path cost would keep dropping to negative infinity forever, so we must stop!`);
+        s.setFailed(true);
         s.logEvent("! negative cycle detected");
         shouldDelay = true;
         break;
@@ -105,8 +107,10 @@ export async function runSimulation() {
   if (path.length) {
     for (const id of path) phases[id] = "settled";
     s.setPhases({ ...phases });
+    s.setFailed(false);
     s.addExplanation(`Success! I found the shortest path from ${source} to ${destination} with a total cost of ${cost}. The route is highlighted in cyan!`);
   } else {
+    s.setFailed(true);
     s.addExplanation(`Search complete, but Router ${destination} is unreachable from Router ${source}. There is no path connecting them!`);
   }
   s.setPath(path);

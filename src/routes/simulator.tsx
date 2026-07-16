@@ -35,6 +35,7 @@ function SimulatorPage() {
   const links = useSim(s => s.links);
   const algo = useSim(s => s.algo);
   const explanations = useSim(s => s.explanations);
+  const failed = useSim(s => s.failed);
 
   const explScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -119,11 +120,17 @@ function SimulatorPage() {
           <div className="rounded-md border border-border bg-[var(--panel)] shrink-0">
             <PanelHead>Lev (AI Helper)</PanelHead>
             <div className="p-3">
-              <div className="font-body text-xs leading-relaxed text-foreground bg-[var(--panel-2)] border border-border rounded p-2.5 relative">
+              <div className={`font-body text-xs leading-relaxed rounded p-2.5 relative border transition ${
+                failed
+                  ? "bg-[rgba(239,68,68,0.06)] border-[var(--accent-2)]"
+                  : "bg-[var(--panel-2)] border-border"
+              }`}>
                 {/* Scrollable list with fixed height */}
                 <div 
                   ref={explScrollRef}
-                  className="relative z-10 font-mono text-xs h-[72px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-border"
+                  className={`relative z-10 font-mono text-xs h-[72px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-border ${
+                    failed ? "text-[var(--accent-2)]" : "text-foreground"
+                  }`}
                 >
                   {explanations.length === 0 ? (
                     <p>Hi, I'm Lev! Choose a Source and Destination router, select an algorithm, and click RUN. I'll explain what's happening step-by-step!</p>
@@ -131,7 +138,7 @@ function SimulatorPage() {
                     explanations.map((exp, idx) => (
                       <p 
                         key={idx} 
-                        className={idx === explanations.length - 1 ? "text-foreground font-bold" : "text-foreground"}
+                        className={idx === explanations.length - 1 ? "font-bold" : "opacity-90"}
                       >
                         • {exp}
                       </p>
