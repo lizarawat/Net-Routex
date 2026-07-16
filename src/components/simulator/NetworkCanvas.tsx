@@ -57,6 +57,7 @@ export function NetworkCanvas({ width: initialWidth = 900, height: initialHeight
 
   // Zoom + pan
   const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 });
+  const [panning, setPanning] = useState<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 
@@ -102,13 +103,18 @@ export function NetworkCanvas({ width: initialWidth = 900, height: initialHeight
   }
 
   function onBgMouseDown(e: React.MouseEvent) {
-    if (mode !== "build") return;
     if (e.button !== 0) return;
     if (linkStart) return;
     if (!isBg(e.target)) return;
-    // Start marquee
-    const p = toWorld(e.clientX, e.clientY);
-    setMarquee({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+
+    if (mode === "build") {
+      // Start marquee
+      const p = toWorld(e.clientX, e.clientY);
+      setMarquee({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    } else {
+      // Start panning (drag area)
+      setPanning({ startX: e.clientX, startY: e.clientY, startTx: view.tx, startTy: view.ty });
+    }
   }
 
   useEffect(() => {
@@ -138,6 +144,29 @@ export function NetworkCanvas({ width: initialWidth = 900, height: initialHeight
     return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marquee?.x0, marquee?.y0]);
+
+  useEffect(() => {
+    if (!panning) return;
+    function move(e: MouseEvent) {
+      const dx = e.clientX - panning!.startX;
+      const dy = e.clientY - panning!.startY;
+      setView(v => ({
+        ...v,
+        tx: panning!.startTx + dx,
+        ty: panning!.startTy + dy,
+      }));
+      dragMoved.current = true;
+    }
+    function up() {
+      setPanning(null);
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [panning]);
 
   function onNodeClick(e: React.MouseEvent, n: RouterNode) {
     e.stopPropagation();
@@ -327,7 +356,7 @@ export function NetworkCanvas({ width: initialWidth = 900, height: initialHeight
         preserveAspectRatio="xMidYMid meet"
         className={`h-full w-full select-none ${
           mode === "drag"
-            ? dragId
+            ? (dragId || panning)
               ? "cursor-grabbing"
               : "cursor-grab"
             : "cursor-crosshair"

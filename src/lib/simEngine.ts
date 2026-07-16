@@ -89,7 +89,6 @@ export async function runSimulation() {
         finalDist = ev.dist;
         finalPrev = ev.prev;
         opCount = ev.opCount;
-        s.addExplanation(`Success! We have found the shortest paths to all reachable nodes from the source. The shortest route is highlighted in cyan!`);
         break;
     }
     // Live speed: read current slider each tick.
@@ -106,6 +105,9 @@ export async function runSimulation() {
   if (path.length) {
     for (const id of path) phases[id] = "settled";
     s.setPhases({ ...phases });
+    s.addExplanation(`Success! I found the shortest path from ${source} to ${destination} with a total cost of ${cost}. The route is highlighted in cyan!`);
+  } else {
+    s.addExplanation(`Search complete, but Router ${destination} is unreachable from Router ${source}. There is no path connecting them!`);
   }
   s.setPath(path);
   s.setActiveLine(null);
