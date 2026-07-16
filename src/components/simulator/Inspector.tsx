@@ -219,7 +219,7 @@ function EventLog({ events }: { events: string[] }) {
           Download (.txt)
         </button>
       </div>
-      <div ref={ref} className="flex-1 overflow-y-auto rounded-sm border border-border bg-black/40 p-2 font-mono text-[11px] text-accent-3">
+      <div ref={ref} className="flex-1 overflow-y-auto rounded-sm border border-border bg-black/40 p-2 font-mono text-[11px] text-accent-3 max-h-[270px]">
         {events.length === 0 && <div className="text-muted-foreground">Waiting for events…</div>}
         {events.map((e, i) => (
           <div key={i} className="whitespace-pre-wrap">&gt; {e}</div>
