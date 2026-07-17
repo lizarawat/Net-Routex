@@ -33,6 +33,7 @@ interface State {
   routingTable: Record<NodeId, { nextHop: NodeId | null; cost: number; hops: number }>;
   stats: Stats;
   events: string[];
+  levMessages: string[];
   packetProgress: number | null;
   linkFailure: boolean;
   activeLine: number | null;
@@ -73,6 +74,7 @@ interface State {
   setRoutingTable: (rt: State["routingTable"]) => void;
   setStats: (s: Stats) => void;
   logEvent: (msg: string) => void;
+  addLevMessage: (msg: string) => void;
   setRunning: (r: boolean) => void;
   setPacketProgress: (p: number | null) => void;
   setActiveLine: (line: number | null) => void;
@@ -108,6 +110,9 @@ export const useSim = create<State>((set) => ({
   routingTable: {},
   stats: emptyStats,
   events: [],
+  levMessages: [
+  "Hi, I'm Lev. Pick a source, destination, and algorithm, then run the simulation. I will explain each major step in plain English.",
+  ],
   packetProgress: null,
   linkFailure: false,
   activeLine: null,
@@ -194,12 +199,12 @@ export const useSim = create<State>((set) => ({
   clearAll: () => { nodeCounter = 0; linkCounter = 0; set({
     nodes: [], links: [], selectedNode: null, selectedNodes: [], selectedLink: null, linkStart: null,
     source: null, destination: null, phases: {}, currentNode: null, path: [],
-    routingTable: {}, stats: emptyStats, events: [], packetProgress: null, linkFailure: false,
+    routingTable: {}, stats: emptyStats, events: [], levMessages: ["Canvas cleared. Build a fresh topology, then I will narrate the next run."], packetProgress: null, linkFailure: false,
     activeLine: null, ranLines: [], distances: {}, explanations: [], paused: false, failed: false,
   }); },
   clearAlgoState: () => set({
     phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
-    events: [], packetProgress: null, running: false, activeLine: null, ranLines: [], distances: {}, explanations: [], paused: false, failed: false,
+    events: [], levMessages: ["Run state reset. I will start a fresh explanation when you press Run again."], packetProgress: null, running: false, activeLine: null, ranLines: [], distances: {}, explanations: [], paused: false, failed: false,
   }),
   loadTopology: (nodes, links) => {
     let maxN = -1, maxL = -1;
@@ -212,7 +217,7 @@ export const useSim = create<State>((set) => ({
       selectedNode: null, selectedNodes: [], selectedLink: null, linkStart: null,
       source: null, destination: null,
       phases: {}, currentNode: null, path: [], routingTable: {}, stats: emptyStats,
-      events: [], packetProgress: null, linkFailure: links.some(l => l.failed),
+      events: [], levMessages: ["Topology loaded. Choose endpoints and I will explain how the selected algorithm explores it."], packetProgress: null, linkFailure: links.some(l => l.failed),
       activeLine: null, ranLines: [], distances: {}, explanations: [], paused: false, failed: false,
     });
   },
@@ -224,6 +229,9 @@ export const useSim = create<State>((set) => ({
   setStats: (s) => set({ stats: s }),
   logEvent: (msg) => set(s => ({
     events: [...s.events.slice(-199), `[${new Date().toLocaleTimeString()}] ${msg}`],
+  })),
+  addLevMessage: (msg) => set(s => ({
+  levMessages: [...s.levMessages.slice(-49), msg],
   })),
   setRunning: (r) => set({ running: r }),
   setPacketProgress: (p) => set({ packetProgress: p }),
