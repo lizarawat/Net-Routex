@@ -10,7 +10,7 @@ function stepDelay() { return Math.max(20, 380 / currentSpeed()); }
 
 export async function runSimulation() {
   const s = useSim.getState();
-  const { nodes, links, source, destination, algo } = s;
+  const { nodes, links, source, destination, algo, unweighted } = s;
   if (!source || !destination) {
     s.logEvent("! Select source and destination first");
     return;
@@ -21,8 +21,16 @@ export async function runSimulation() {
   s.setPaused(false);
   s.setFailed(false);
   s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination}`);
-
-  const gen = runAlgorithm(algo, nodes, links, source);
+  s.addLevMessage(
+  `Starting ${algo}. I will explore from ${source} toward ${destination}${unweighted ? " and treat every link as cost 1." : "."}`,
+  );
+  if (links.some((link) => link.failed)) {
+  s.addLevMessage(
+    "Some links are marked failed, so the algorithm will ignore them and look for a backup route.",
+  );
+  }
+  const activeLinks = unweighted ? links.map((link) => ({ ...link, weight: 1 })) : links;
+  const gen = runAlgorithm(algo, nodes, activeLinks, source);
   const phases: Record<NodeId, "idle" | "frontier" | "current" | "settled"> = {};
   const distances: Record<NodeId, number> = {};
   for (const n of nodes) {
@@ -60,12 +68,14 @@ export async function runSimulation() {
         s.setPhases({ ...phases });
         s.addExplanation(`I added router ${ev.node} to the queue of nodes to inspect next. (Current estimated distance: ${ev.dist === Infinity ? "∞" : ev.dist})`);
         s.logEvent(`enqueue ${ev.node} (d=${ev.dist})`);
+        s.addLevMessage(`${ev.node} is now in the frontier with distance ${ev.dist}.`);
         break;
       case "visit":
         s.setCurrentNode(ev.node);
         phases[ev.node] = "current";
         s.setPhases({ ...phases });
         s.addExplanation(`I am visiting router ${ev.node} now. I will look at all the outgoing cables connected to it to see if we can find any shortcuts.`);
+        s.addLevMessage(`Now visiting ${ev.node}. I am checking its connected links for better routes.`);
         break;
       case "relax":
         relaxed++;
@@ -73,6 +83,11 @@ export async function runSimulation() {
         s.setDistances({ ...distances });
         s.addExplanation(`Found a shortcut! Going through ${ev.from} to reach ${ev.to} is shorter. We update its distance from ${ev.oldDist === Infinity ? "∞" : ev.oldDist} to ${ev.newDist}.`);
         s.logEvent(`relax ${ev.from}→${ev.to}: ${ev.oldDist === Infinity ? "∞" : ev.oldDist} → ${ev.newDist}`);
+        s.addLevMessage(
+        ev.oldDist === Infinity
+        ? `Found ${ev.to} through ${ev.from}. Its first known distance is ${ev.newDist}.`
+        : `Found a shortcut to ${ev.to} through ${ev.from}: ${ev.oldDist} becomes ${ev.newDist}.`,
+        );
         break;
       case "settle":
         phases[ev.node] = "settled";
@@ -85,6 +100,9 @@ export async function runSimulation() {
         s.addExplanation(`Oh no! I detected a negative weight cycle. The path cost would keep dropping to negative infinity forever, so we must stop!`);
         s.setFailed(true);
         s.logEvent("! negative cycle detected");
+        s.addLevMessage(
+        "Bellman-Ford detected a negative cycle, so shortest paths are not well-defined for this graph.",
+        );
         shouldDelay = true;
         break;
       case "done":
@@ -139,10 +157,12 @@ export async function runSimulation() {
 
   if (!path.length) {
     s.logEvent(`! ${destination} unreachable from ${source}`);
+    s.addLevMessage(`${destination} is unreachable from ${source}. Try adding a link or repairing a failed link.`);
     s.setRunning(false);
     return;
   }
   s.logEvent(`✓ path found: ${path.join(" → ")} (cost ${cost}, ${path.length - 1} hops, ${Math.round(ms)}ms)`);
+  s.addLevMessage(`Shortest path found: ${path.join(" -> ")}. Total cost is ${cost} across ${path.length - 1} hop(s).`);
 
   // Packet animation: rAF-driven, respects live speed changes.
   const totalSegments = path.length - 1;
