@@ -1,4 +1,6 @@
-#define CPPHTTPLIB_OPENSSL_SUPPORT
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
 #include "httplib.h"
 #include "nlohmann/json.hpp"
 #include <iostream>
