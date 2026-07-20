@@ -20,17 +20,35 @@ export async function runSimulation() {
   s.setRunning(true);
   s.setPaused(false);
   s.setFailed(false);
-  s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination}`);
+  s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination} (C++ backend)`);
   s.addLevMessage(
-  `Starting ${algo}. I will explore from ${source} toward ${destination}${unweighted ? " and treat every link as cost 1." : "."}`,
+    `Starting ${algo} on C++ backend. Exploring from ${source} toward ${destination}${unweighted ? " (unweighted)." : "."}`,
   );
   if (links.some((link) => link.failed)) {
-  s.addLevMessage(
-    "Some links are marked failed, so the algorithm will ignore them and look for a backup route.",
-  );
+    s.addLevMessage(
+      "Some links are marked failed, so the algorithm will ignore them and look for a backup route.",
+    );
   }
-  const activeLinks = unweighted ? links.map((link) => ({ ...link, weight: 1 })) : links;
-  const gen = runAlgorithm(algo, nodes, activeLinks, source);
+
+  // Fetch pre-calculated algorithms and traces from C++ server
+  let response;
+  try {
+    const activeLinks = unweighted ? links.map((link) => ({ ...link, weight: 1 })) : links;
+    const res = await fetch("http://localhost:8000/api/solve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodes, links: activeLinks, source, destination, algo }),
+    });
+    if (!res.ok) throw new Error("C++ server error: " + res.status);
+    response = await res.json();
+  } catch (e) {
+    s.logEvent("! Connection to C++ Server failed. Make sure C++ backend is running on http://localhost:8000");
+    s.addLevMessage("Could not connect to C++ backend. Please compile and start server.cpp first!");
+    s.setRunning(false);
+    return;
+  }
+
+  const { events, path, cost } = response;
   const phases: Record<NodeId, "idle" | "frontier" | "current" | "settled"> = {};
   const distances: Record<NodeId, number> = {};
   for (const n of nodes) {
@@ -44,7 +62,7 @@ export async function runSimulation() {
 
   const start = performance.now();
 
-  for (const ev of gen as Generator<AlgoEvent>) {
+  for (const ev of events) {
     if (cancelled) { s.setRunning(false); s.setActiveLine(null); return; }
     while (useSim.getState().paused && !cancelled) {
       await new Promise(r => setTimeout(r, 50));
@@ -58,7 +76,9 @@ export async function runSimulation() {
         shouldDelay = true;
         break;
       case "init":
-        Object.assign(distances, ev.dist);
+        for (const [nid, val] of Object.entries(ev.dist)) {
+          distances[nid] = val === null ? Infinity : (val as number);
+        }
         s.setDistances({ ...distances });
         s.addExplanation(`I am starting the search at the Source router (${ev.source}). Its distance is set to 0, and all other routers are set to infinity because we haven't visited them yet!`);
         s.logEvent(`init: dist[${ev.source}]=0`);
@@ -66,14 +86,16 @@ export async function runSimulation() {
       case "enqueue":
         if (phases[ev.node] !== "settled") phases[ev.node] = "frontier";
         s.setPhases({ ...phases });
-        s.addExplanation(`I added router ${ev.node} to the queue of nodes to inspect next. (Current estimated distance: ${ev.dist === Infinity ? "∞" : ev.dist})`);
-        s.logEvent(`enqueue ${ev.node} (d=${ev.dist})`);
-        s.addLevMessage(`${ev.node} is now in the frontier with distance ${ev.dist}.`);
+        const dVal = ev.dist === null ? Infinity : ev.dist;
+        s.addExplanation(`I added router ${ev.node} to the queue of nodes to inspect next. (Current estimated distance: ${dVal === Infinity ? "∞" : dVal})`);
+        s.logEvent(`enqueue ${ev.node} (d=${dVal === Infinity ? "∞" : dVal})`);
+        s.addLevMessage(`${ev.node} is now in the frontier with distance ${dVal === Infinity ? "∞" : dVal}.`);
         break;
       case "visit":
         s.setCurrentNode(ev.node);
         phases[ev.node] = "current";
         s.setPhases({ ...phases });
+        const visitD = ev.dist === null ? Infinity : ev.dist;
         s.addExplanation(`I am visiting router ${ev.node} now. I will look at all the outgoing cables connected to it to see if we can find any shortcuts.`);
         s.addLevMessage(`Now visiting ${ev.node}. I am checking its connected links for better routes.`);
         break;
@@ -81,12 +103,13 @@ export async function runSimulation() {
         relaxed++;
         distances[ev.to] = ev.newDist;
         s.setDistances({ ...distances });
-        s.addExplanation(`Found a shortcut! Going through ${ev.from} to reach ${ev.to} is shorter. We update its distance from ${ev.oldDist === Infinity ? "∞" : ev.oldDist} to ${ev.newDist}.`);
-        s.logEvent(`relax ${ev.from}→${ev.to}: ${ev.oldDist === Infinity ? "∞" : ev.oldDist} → ${ev.newDist}`);
+        const oldD = ev.oldDist === null ? Infinity : ev.oldDist;
+        s.addExplanation(`Found a shortcut! Going through ${ev.from} to reach ${ev.to} is shorter. We update its distance from ${oldD === Infinity ? "∞" : oldD} to ${ev.newDist}.`);
+        s.logEvent(`relax ${ev.from}→${ev.to}: ${oldD === Infinity ? "∞" : oldD} → ${ev.newDist}`);
         s.addLevMessage(
-        ev.oldDist === Infinity
-        ? `Found ${ev.to} through ${ev.from}. Its first known distance is ${ev.newDist}.`
-        : `Found a shortcut to ${ev.to} through ${ev.from}: ${ev.oldDist} becomes ${ev.newDist}.`,
+          oldD === Infinity
+            ? `Found ${ev.to} through ${ev.from}. Its first known distance is ${ev.newDist}.`
+            : `Found a shortcut to ${ev.to} through ${ev.from}: ${oldD} becomes ${ev.newDist}.`,
         );
         break;
       case "settle":
@@ -101,12 +124,14 @@ export async function runSimulation() {
         s.setFailed(true);
         s.logEvent("! negative cycle detected");
         s.addLevMessage(
-        "Bellman-Ford detected a negative cycle, so shortest paths are not well-defined for this graph.",
+          "Bellman-Ford detected a negative cycle, so shortest paths are not well-defined for this graph.",
         );
         shouldDelay = true;
         break;
       case "done":
-        finalDist = ev.dist;
+        for (const [nid, val] of Object.entries(ev.dist)) {
+          finalDist[nid] = val === null ? Infinity : (val as number);
+        }
         finalPrev = ev.prev;
         opCount = ev.opCount;
         break;
@@ -118,8 +143,6 @@ export async function runSimulation() {
   }
 
   const ms = performance.now() - start;
-  const path = reconstructPath(finalPrev, source, destination);
-  const cost = path.length ? finalDist[destination] ?? 0 : 0;
   const visitedCount = Object.values(phases).filter(p => p === "settled").length;
 
   if (path.length) {
