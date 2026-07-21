@@ -1,6 +1,12 @@
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0A00 // Target Windows 10
 #endif
+
+// 1. WebAssembly Emscripten Headers (Optional compiler support)
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #include "httplib.h"
 #include "nlohmann/json.hpp"
 #include <iostream>
@@ -18,18 +24,15 @@ using namespace std;
 // OOP Design: NetworkGraph class encapsulates all graph states and algorithms
 class NetworkGraph {
 private:
-    // Structure defining a single connecting link/edge
     struct Edge {
         string to;
         double weight;
     };
 
-    // Private member variables
-    unordered_map<string, vector<Edge>> adj; // Adjacency list representation
+    unordered_map<string, vector<Edge>> adj;
     json nodes;
     json links;
 
-    // Private helper: Build adjacency list internally
     void buildAdjacencyList() {
         for (const auto& n : nodes) {
             adj[n["id"].get<string>()] = {};
@@ -43,11 +46,10 @@ private:
             double w = l["weight"].get<double>();
             
             adj[from].push_back({to, w});
-            adj[to].push_back({from, w}); // Undirected graph
+            adj[to].push_back({from, w});
         }
     }
 
-    // Private helper: Reconstruct paths from node predecessors
     vector<string> reconstructPath(const unordered_map<string, string>& prev, const string& src, const string& dst) {
         vector<string> path;
         string cur = dst;
@@ -68,7 +70,6 @@ private:
         return path;
     }
 
-    // Private helper: Convert infinity values to null for web response
     json serializeDistances(const unordered_map<string, double>& dist) {
         json j_dist = json::object();
         for (const auto& pair : dist) {
@@ -82,12 +83,10 @@ private:
     }
 
 public:
-    // Class Constructor: Initializes the graph structure
     NetworkGraph(const json& n, const json& l) : nodes(n), links(l) {
         buildAdjacencyList();
     }
 
-    // Public Method: Dijkstra's shortest path algorithm
     json runDijkstra(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -173,7 +172,6 @@ public:
         };
     }
 
-    // Public Method: Breadth-First Search (BFS)
     json runBFS(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -246,7 +244,6 @@ public:
         };
     }
 
-    // Public Method: Depth-First Search (DFS)
     json runDFS(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -422,15 +419,59 @@ public:
     }
 };
 
+// 2. WebAssembly exports for Emscripten compiler compatibility
+#ifdef __EMSCRIPTEN__
+extern "C" {
+
+EMSCRIPTEN_KEEPALIVE
+const char* solveGraph(const char* nodesJsonStr, const char* linksJsonStr, const char* sourceStr, const char* destinationStr, const char* algoStr) {
+    try {
+        json nodes = json::parse(nodesJsonStr);
+        json links = json::parse(linksJsonStr);
+        string source(sourceStr);
+        string destination(destinationStr);
+        string algo(algoStr);
+        
+        NetworkGraph graph(nodes, links);
+        json result;
+        
+        if (algo == "dijkstra") {
+            result = graph.runDijkstra(source, destination);
+        } else if (algo == "bfs") {
+            result = graph.runBFS(source, destination);
+        } else if (algo == "dfs") {
+            result = graph.runDFS(source, destination);
+        } else if (algo == "bellman-ford") {
+            result = graph.runBellmanFord(source, destination);
+        } else {
+            return "{\"error\":\"Unknown algorithm\"}";
+        }
+        
+        static string responseBuffer;
+        responseBuffer = result.dump();
+        return responseBuffer.c_str();
+        
+    } catch (const exception& e) {
+        static string errBuffer;
+        errBuffer = string("{\"error\":\"") + e.what() + "\"}";
+        return errBuffer.c_str();
+    }
+}
+
+}
+#endif
+
+// 3. Main Entry: compiles standard HTTP server when compiled normally with g++
+#ifndef __EMSCRIPTEN__
 int main() {
     httplib::Server svr;
     
     cout << "--------------------------------------------------" << endl;
     cout << "  NetRouteX C++ DSA Routing Engine Active" << endl;
     cout << "  Listening on: http://localhost:8000" << endl;
+    cout << "  [WASM Compatibility Included]" << endl;
     cout << "--------------------------------------------------" << endl;
     
-    // /api/solve endpoint
     svr.Post("/api/solve", [](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
@@ -447,7 +488,6 @@ int main() {
             
             cout << "[API Request] Running " << algo << " from " << source << " to " << destination << endl;
             
-            // Instantiating C++ NetworkGraph class object
             NetworkGraph graph(nodes, links);
             json result;
             
@@ -475,7 +515,6 @@ int main() {
         }
     });
     
-    // OPTIONS endpoint for CORS pre-flight
     svr.Options("/api/solve", [](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
@@ -486,3 +525,4 @@ int main() {
     svr.listen("localhost", 8000);
     return 0;
 }
+#endif
