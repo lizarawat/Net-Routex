@@ -1,3 +1,5 @@
+// @ts-ignore
+import createModule from "./wasm/server.js";
 import { runAlgorithm, reconstructPath } from "@/lib/algorithms";
 import type { AlgoEvent, NodeId } from "@/lib/graph/types";
 import { useSim } from "@/state/simStore";
@@ -7,6 +9,22 @@ export function cancelRun() { cancelled = true; }
 
 function currentSpeed() { return useSim.getState().speed || 1; }
 function stepDelay() { return Math.max(20, 380 / currentSpeed()); }
+
+// Cache the WebAssembly solver function
+let wasmSolve: any = null;
+async function getWasmSolve() {
+  if (wasmSolve) return wasmSolve;
+  const module = await createModule({
+    locateFile: (path: string) => {
+      if (path.endsWith(".wasm")) {
+        return "/server.wasm";
+      }
+      return path;
+    }
+  });
+  wasmSolve = module.cwrap("solveGraph", "string", ["string", "string", "string", "string", "string"]);
+  return wasmSolve;
+}
 
 export async function runSimulation() {
   const s = useSim.getState();
@@ -20,9 +38,9 @@ export async function runSimulation() {
   s.setRunning(true);
   s.setPaused(false);
   s.setFailed(false);
-  s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination} (C++ backend)`);
+  s.logEvent(`> run ${algo.toUpperCase()} from ${source} to ${destination} (C++ WebAssembly)`);
   s.addLevMessage(
-    `Starting ${algo} on C++ backend. Exploring from ${source} toward ${destination}${unweighted ? " (unweighted)." : "."}`,
+    `Starting ${algo} on compiled C++ WebAssembly. Exploring from ${source} toward ${destination}${unweighted ? " (unweighted)." : "."}`,
   );
   if (links.some((link) => link.failed)) {
     s.addLevMessage(
@@ -30,20 +48,21 @@ export async function runSimulation() {
     );
   }
 
-  // Fetch pre-calculated algorithms and traces from C++ server
+  // Execute C++ logic directly in-browser using WebAssembly (Wasm)
   let response;
   try {
     const activeLinks = unweighted ? links.map((link) => ({ ...link, weight: 1 })) : links;
-    const res = await fetch("http://localhost:8000/api/solve", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodes, links: activeLinks, source, destination, algo }),
-    });
-    if (!res.ok) throw new Error("C++ server error: " + res.status);
-    response = await res.json();
-  } catch (e) {
-    s.logEvent("! Connection to C++ Server failed. Make sure C++ backend is running on http://localhost:8000");
-    s.addLevMessage("Could not connect to C++ backend. Please compile and start server.cpp first!");
+    const solver = await getWasmSolve();
+    
+    const nodesStr = JSON.stringify(nodes);
+    const linksStr = JSON.stringify(activeLinks);
+    
+    const resultJson = solver(nodesStr, linksStr, source, destination, algo);
+    response = JSON.parse(resultJson);
+    if (response.error) throw new Error(response.error);
+  } catch (e: any) {
+    s.logEvent("! WebAssembly C++ Execution failed: " + e.message);
+    s.addLevMessage("Could not run C++ calculations in the browser. Make sure WebAssembly builds correctly.");
     s.setRunning(false);
     return;
   }

@@ -2,12 +2,11 @@
 #define _WIN32_WINNT 0x0A00 // Target Windows 10
 #endif
 
-// 1. WebAssembly Emscripten Headers (Optional compiler support)
+// 1. WebAssembly Emscripten Headers
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
 
-#include "httplib.h"
 #include "nlohmann/json.hpp"
 #include <iostream>
 #include <vector>
@@ -319,7 +318,6 @@ public:
         };
     }
 
-    // Public Method: Bellman-Ford
     json runBellmanFord(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -419,7 +417,7 @@ public:
     }
 };
 
-// 2. WebAssembly exports for Emscripten compiler compatibility
+// WebAssembly exports for Emscripten compiler compatibility
 #ifdef __EMSCRIPTEN__
 extern "C" {
 
@@ -458,71 +456,5 @@ const char* solveGraph(const char* nodesJsonStr, const char* linksJsonStr, const
     }
 }
 
-}
-#endif
-
-// 3. Main Entry: compiles standard HTTP server when compiled normally with g++
-#ifndef __EMSCRIPTEN__
-int main() {
-    httplib::Server svr;
-    
-    cout << "--------------------------------------------------" << endl;
-    cout << "  NetRouteX C++ DSA Routing Engine Active" << endl;
-    cout << "  Listening on: http://localhost:8000" << endl;
-    cout << "  [WASM Compatibility Included]" << endl;
-    cout << "--------------------------------------------------" << endl;
-    
-    svr.Post("/api/solve", [](const httplib::Request& req, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type");
-        res.set_header("Content-Type", "application/json");
-        
-        try {
-            auto body = json::parse(req.body);
-            string algo = body["algo"].get<string>();
-            string source = body["source"].get<string>();
-            string destination = body["destination"].get<string>();
-            json nodes = body["nodes"];
-            json links = body["links"];
-            
-            cout << "[API Request] Running " << algo << " from " << source << " to " << destination << endl;
-            
-            NetworkGraph graph(nodes, links);
-            json result;
-            
-            if (algo == "dijkstra") {
-                result = graph.runDijkstra(source, destination);
-            } else if (algo == "bfs") {
-                result = graph.runBFS(source, destination);
-            } else if (algo == "dfs") {
-                result = graph.runDFS(source, destination);
-            } else if (algo == "bellman-ford") {
-                result = graph.runBellmanFord(source, destination);
-            } else {
-                res.status = 400;
-                res.body = json({{"error", "Unknown algorithm"}}).dump();
-                return;
-            }
-            
-            res.status = 200;
-            res.body = result.dump();
-            
-        } catch (const exception& e) {
-            cerr << "[Error] Request parse failed: " << e.what() << endl;
-            res.status = 400;
-            res.body = json({{"error", e.what()}}).dump();
-        }
-    });
-    
-    svr.Options("/api/solve", [](const httplib::Request& req, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type");
-        res.status = 200;
-    });
-    
-    svr.listen("localhost", 8000);
-    return 0;
 }
 #endif
