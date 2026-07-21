@@ -1,4 +1,3 @@
-// WebAssembly Emscripten Headers
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
@@ -15,21 +14,17 @@
 using json = nlohmann::json;
 using namespace std;
 
-// OOP Design: NetworkGraph class encapsulates all graph states and algorithms
 class NetworkGraph {
 private:
-    // Structure defining a single connecting link/edge
     struct Edge {
         string to;
         double weight;
     };
 
-    // Private member variables
-    unordered_map<string, vector<Edge>> adj; // Adjacency list representation
+    unordered_map<string, vector<Edge>> adj;
     json nodes;
     json links;
 
-    // Private helper: Build adjacency list internally
     void buildAdjacencyList() {
         for (const auto& n : nodes) {
             adj[n["id"].get<string>()] = {};
@@ -43,11 +38,10 @@ private:
             double w = l["weight"].get<double>();
             
             adj[from].push_back({to, w});
-            adj[to].push_back({from, w}); // Undirected graph
+            adj[to].push_back({from, w}); 
         }
     }
 
-    // Private helper: Reconstruct paths from node predecessors
     vector<string> reconstructPath(const unordered_map<string, string>& prev, const string& src, const string& dst) {
         vector<string> path;
         string cur = dst;
@@ -68,7 +62,6 @@ private:
         return path;
     }
 
-    // Private helper: Convert infinity values to null for web response
     json serializeDistances(const unordered_map<string, double>& dist) {
         json j_dist = json::object();
         for (const auto& pair : dist) {
@@ -82,12 +75,10 @@ private:
     }
 
 public:
-    // Class Constructor: Initializes the graph structure
     NetworkGraph(const json& n, const json& l) : nodes(n), links(l) {
         buildAdjacencyList();
     }
 
-    // Public Method: Dijkstra's shortest path algorithm
     json runDijkstra(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -173,7 +164,6 @@ public:
         };
     }
 
-    // Public Method: Breadth-First Search (BFS)
     json runBFS(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -246,7 +236,6 @@ public:
         };
     }
 
-    // Public Method: Depth-First Search (DFS)
     json runDFS(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -322,7 +311,6 @@ public:
         };
     }
 
-    // Public Method: Bellman-Ford
     json runBellmanFord(const string& src, const string& dst) {
         unordered_map<string, double> dist;
         unordered_map<string, string> prev;
@@ -422,7 +410,6 @@ public:
     }
 };
 
-// WebAssembly exports for Emscripten compiler compatibility
 #ifdef __EMSCRIPTEN__
 extern "C" {
 
