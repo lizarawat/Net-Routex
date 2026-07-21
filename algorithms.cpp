@@ -1,4 +1,4 @@
-// WebAssembly Emscripten Headers (Optional compiler support)
+// WebAssembly Emscripten Headers
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
